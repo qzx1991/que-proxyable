@@ -1,7 +1,5 @@
 {
   "compilerOptions": {
-    "allowJs": true,
-    "isolatedModules": false,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "importHelpers": true,
@@ -13,15 +11,18 @@
     "noUnusedLocals": false,
     "removeComments": true,
     "sourceMap": false,
-    "strict": true,
-    "target": "es2017",
+    "strict": false,
+    "target": "es5",
+    "declaration": true,
+    "outDir": "dist",
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "declaration": true,
-    "outDir": "dist"
+    "jsx": "react"
   },
-  "include": ["src"]
+  "include": ["src"],
+  "compileOnSave": false,
+  "buildOnSave": false
 }
