@@ -1,22 +1,14 @@
 export default class Emitter {
-  private handlers = new Map<
-    string,
-    { handler: (...args: any[]) => void; once?: boolean }[]
-  >();
+  private handlers = new Map<string, { handler: (...args: any[]) => void; once?: boolean }[]>();
   // 一直监听
   on(eventname: string, handler: (...args: any[]) => void) {
     if (!this.handlers.has(eventname)) {
       this.handlers.set(eventname, []);
     }
     const arr = this.handlers.get(eventname);
-    const obj = { handler };
+    const obj: { once?: boolean; handler: typeof handler } = { handler };
     arr?.push(obj);
-    return () => {
-      const newArr = this.handlers.get(eventname);
-      if (newArr) {
-        newArr?.splice(newArr?.indexOf(obj), 1);
-      }
-    };
+    return () => (obj.once = true);
   }
   // 监听一次
   once(eventname: string, handler: (...args: any[]) => void) {
@@ -33,7 +25,7 @@ export default class Emitter {
       arr.forEach((i) => i.handler(...values));
       this.handlers.set(
         eventname,
-        arr.filter((i) => !i.once)
+        arr.filter((i) => !i.once),
       );
     }
   }
