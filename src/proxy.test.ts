@@ -1,6 +1,8 @@
 import { Computed } from './@Computed';
 import { State } from './@State';
 import Emitter from './emitter';
+// import { Processable } from './process';
+// import { QueProxyable } from './proxy';
 
 class A {
   @State()
@@ -66,3 +68,22 @@ test('测试Emitter', () => {
   emitter.emit('get');
   expect(count).toBe(3);
 });
+
+// test('测试excuteable', () => {
+//   const obj1 = QueProxyable({ a: 1 });
+//   const obj2 = QueProxyable({ b: 2 });
+//   const obj3 = QueProxyable({ c: 1 });
+//   let count = 1;
+//   let count2 = 1;
+//   const p1 = new Processable(() => {
+//     count++;
+//     new Processable(() => {
+//       count2++;
+//       return obj3.c;
+//     });
+//     console.log(obj3.c); // c 变化 子进程执行了 父进程也执行了一次 重新生成了子进程
+//     return obj1.a + obj2.b;
+//   });
+//   expect(p1.value).toBe(3);
+//   expect(count2).toBe(2);
+// });

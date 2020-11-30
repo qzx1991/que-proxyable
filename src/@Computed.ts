@@ -30,12 +30,15 @@ export function Computed() {
             store.shouldUpdate = false;
             // 移除监听
             unsub();
-            const unsubSet = watcher.onSet((t, k) => {
-              if (map.has(t) && map.get(t)?.has(k)) {
-                unsubSet();
-                store.shouldUpdate = true;
-              }
-            });
+            if (map.size > 0) {
+              const unsubSet = watcher.onSet((t, k) => {
+                if (map.has(t) && map.get(t)?.has(k)) {
+                  map.clear();
+                  unsubSet();
+                  store.shouldUpdate = true;
+                }
+              });
+            }
             return store.value;
           };
           Object.defineProperty(this, key, {
