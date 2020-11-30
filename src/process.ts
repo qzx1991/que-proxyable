@@ -47,7 +47,7 @@ watcher.onSet((t, k) => {
   }
 });
 
-export class Processable<T = any> {
+export class Processable {
   static getProcess(id: number) {
     return all_processes.get(id);
   }
@@ -56,7 +56,7 @@ export class Processable<T = any> {
   }
 
   @State()
-  private _value: T | undefined = undefined;
+  private value: () => void | undefined = undefined;
   private _shouldGoOn: boolean = true;
 
   private id: number;
@@ -68,11 +68,7 @@ export class Processable<T = any> {
   // 父节点ID
   parent: Processable = TEMP_RUNNING_PROCESS;
 
-  get value() {
-    return this._value;
-  }
-
-  constructor(private handler: () => T) {
+  constructor(private handler: () => (() => void) | undefined) {
     this.id = ++processId;
     all_processes.set(this.id, this);
     this.run();
@@ -112,13 +108,16 @@ export class Processable<T = any> {
     lastProces?.childProcess?.add(this);
     // 保为当前进程
     TEMP_RUNNING_PROCESS = this;
-    this._value = this.handler();
+    this.value = this.handler();
     TEMP_RUNNING_PROCESS = lastProces;
   }
 
   stop() {
     this.clearChildProcess();
     this._shouldGoOn = false;
+    if (this.value) {
+      this.value();
+    }
     // 清除进程ID的记录
     all_processes.delete(this.id);
   }
