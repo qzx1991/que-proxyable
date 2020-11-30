@@ -10,14 +10,18 @@ export class ProxyWatcher {
     emitter.once('get', ({ target, property, value }: any) => handler(target, property, value));
   }
 
-  onSet(handler: (target: any, property: string, value: any, oldValue: any) => void) {
-    return emitter.on('set', ({ target, property, value, oldValue }: any) =>
-      handler(target, property, value, oldValue),
+  onSet(
+    handler: (target: any, property: string, value: any, oldValue: any, isAdd: boolean) => void,
+  ) {
+    return emitter.on('set', ({ target, property, value, oldValue, isAdd }: any) =>
+      handler(target, property, value, oldValue, isAdd),
     );
   }
-  onceSet(handler: (target: any, property: string, value: any, oldValue: any) => void) {
-    emitter.once('set', ({ target, property, value, oldValue }: any) =>
-      handler(target, property, value, oldValue),
+  onceSet(
+    handler: (target: any, property: string, value: any, oldValue: any, isAdd: boolean) => void,
+  ) {
+    emitter.once('set', ({ target, property, value, oldValue, isAdd }: any) =>
+      handler(target, property, value, oldValue, isAdd),
     );
   }
   onDelete(handler: (target: any, property: string) => void) {

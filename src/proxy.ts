@@ -49,11 +49,13 @@ export function QueProxyable<T>(target: T): T {
       // 记得要移除 防止内存泄漏
       if (t !== this) {
         KEYS_PROXYDATA_MAP.delete(k);
+        const isAdd = !t.hasOwnProperty(k);
         const res = Reflect.set(t, k, v, r);
         emitter.emit('set', {
           target: t,
           property: k,
           value: v,
+          isAdd,
           oldValue: Reflect.get(t, k),
         });
         return res;
