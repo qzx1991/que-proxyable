@@ -1,4 +1,3 @@
-import { QueProxyable } from '.';
 import { State } from './@State';
 import { ProxyWatcher } from './Watcher';
 
@@ -68,10 +67,10 @@ export class Processable {
   // 父节点ID
   parent: Processable = TEMP_RUNNING_PROCESS;
 
-  constructor(private handler: () => (() => void) | void) {
+  constructor(private handler: () => (() => void) | void, initOnRun = true) {
     this.id = ++processId;
     all_processes.set(this.id, this);
-    this.run();
+    initOnRun && this.run();
   }
 
   getId() {
