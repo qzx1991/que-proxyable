@@ -68,7 +68,7 @@ export class Processable {
   // 父节点ID
   parent: Processable = TEMP_RUNNING_PROCESS;
 
-  constructor(private handler: () => (() => void) | undefined) {
+  constructor(private handler: () => () => void | undefined) {
     this.id = ++processId;
     all_processes.set(this.id, this);
     this.run();
