@@ -56,7 +56,7 @@ export class Processable {
   }
 
   @State()
-  private value: () => void | undefined = undefined;
+  private value: (() => void) | void;
   private _shouldGoOn: boolean = true;
 
   private id: number;
@@ -68,7 +68,7 @@ export class Processable {
   // 父节点ID
   parent: Processable = TEMP_RUNNING_PROCESS;
 
-  constructor(private handler: () => () => void | undefined) {
+  constructor(private handler: () => (() => void) | void) {
     this.id = ++processId;
     all_processes.set(this.id, this);
     this.run();
