@@ -99,6 +99,8 @@ export class Processable {
     // 不该继续，那得停止
     if (!this._shouldGoOn) return;
     this.beginId = processId;
+    // 要销毁之前的事件监听
+    this.removeEvents();
     // 由于重新运行了，需要清除之前的子程序
     this.clearChildProcess();
     // 保存上个进程
@@ -111,12 +113,16 @@ export class Processable {
     TEMP_RUNNING_PROCESS = lastProces;
   }
 
-  stop() {
-    this.clearChildProcess();
-    this._shouldGoOn = false;
+  removeEvents() {
     if (this.value) {
       this.value();
     }
+  }
+
+  stop() {
+    this.clearChildProcess();
+    this._shouldGoOn = false;
+    this.removeEvents();
     // 清除进程ID的记录
     all_processes.delete(this.id);
   }
