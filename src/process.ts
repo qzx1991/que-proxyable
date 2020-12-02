@@ -33,17 +33,11 @@ watcher.onGet((t, k) => {
 });
 watcher.onSet((t, k) => {
   const ps = TARTGET_PROCESS_STORE.get(t)?.get(k);
-  // 标识是setting
-  // 运行
   TARTGET_PROCESS_STORE.get(t)?.delete(k);
   if (TARTGET_PROCESS_STORE.get(t)?.size === 0) {
     TARTGET_PROCESS_STORE.delete(t);
   }
   ps?.forEach((p) => p.run());
-  TARTGET_PROCESS_STORE.get(t)?.delete(k);
-  if (TARTGET_PROCESS_STORE.get(t)?.size === 0) {
-    TARTGET_PROCESS_STORE.delete(t);
-  }
 });
 
 export class Processable {
@@ -113,6 +107,11 @@ export class Processable {
     TEMP_RUNNING_PROCESS = lastProces;
   }
 
+  reRun() {
+    this._shouldGoOn = true;
+    this.run();
+  }
+
   removeEvents() {
     if (this.value) {
       this.value();
@@ -120,6 +119,7 @@ export class Processable {
   }
 
   stop() {
+    if (!this._shouldGoOn) return;
     this.clearChildProcess();
     this._shouldGoOn = false;
     this.removeEvents();
