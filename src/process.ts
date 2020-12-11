@@ -62,6 +62,12 @@ watcher.onSet((t, k) => {
 });
 
 export class Processable {
+  static withoutRecording(handler: () => void) {
+    let lastProces = TEMP_RUNNING_PROCESS;
+    TEMP_RUNNING_PROCESS = null;
+    handler();
+    TEMP_RUNNING_PROCESS = lastProces;
+  }
   static getProcess(id: number) {
     return all_processes.get(id);
   }
@@ -76,6 +82,8 @@ export class Processable {
   private id: number;
 
   private childProcess = new Set<Processable>();
+
+  count = 1;
 
   beginId: number;
 
@@ -92,7 +100,11 @@ export class Processable {
   parent: Processable = TEMP_RUNNING_PROCESS;
 
   constructor(
-    private handler: () => (() => void) | void,
+    private handler: (opt: {
+      count: number;
+      id: number;
+      process: Processable;
+    }) => (() => void) | void,
     {
       initOnRun = true, // 是否在初始化的时候就执行
       nexttick = false,
@@ -149,7 +161,11 @@ export class Processable {
     lastProces?.childProcess?.add(this);
     // 保为当前进程
     TEMP_RUNNING_PROCESS = this;
-    this.value = this.handler();
+    this.value = this.handler({
+      count: this.count,
+      process: this,
+      id: this.id,
+    });
     TEMP_RUNNING_PROCESS = lastProces;
     //记录endId
     this.endId = processId;

@@ -3,6 +3,10 @@ import { emitter } from './common';
 const PROXYABLE_FLAG = Symbol('is_proxyable');
 const ORIGIN_TARGET_FLAG = Symbol('origin_target_flag');
 
+export function Ref<T>(v: T) {
+  return QueProxyable({ value: v });
+}
+
 export function QueProxyable<T>(target: T): T {
   // 不是一个对象的时候不代理
   if (!target || typeof target !== 'object') return target;

@@ -1,4 +1,5 @@
 import { emitter } from './common';
+import { QueProxyable } from './proxy';
 
 export class ProxyWatcher {
   onGet(handler: (target: any, property: string, value: any) => void) {
