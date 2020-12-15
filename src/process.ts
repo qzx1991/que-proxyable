@@ -1,22 +1,62 @@
 import { Debounce, Throttle } from 'que-utils';
-import { State } from './@State';
 import { ProxyWatcher } from './Watcher';
 
 let processId = 0;
 const all_processes = new Map<number, Processable>();
 const watcher = new ProxyWatcher();
-const TARTGET_PROCESS_STORE: Map<any, Map<string, Processable[]>> = new Map();
+const TARTGET_PROCESS_STORE: Map<any, Map<string | symbol, Processable[]>> = new Map();
+const PROCESS_TARGET_STORE = new Map<Processable, Map<any, Set<string | symbol>>>();
+const SYSTEM_ADD_PROPERTY = Symbol('add');
+const SYSTEM_DELETE_PROPERTY = Symbol('delete');
+
 let TEMP_RUNNING_PROCESS: Processable | undefined = undefined;
 
-function addRely(t: any, k: string) {
+function addProcessTargetStore(t: any, k: string | symbol, v?: any) {
   if (!TEMP_RUNNING_PROCESS) return;
+  if (!PROCESS_TARGET_STORE.get(TEMP_RUNNING_PROCESS)) {
+    PROCESS_TARGET_STORE.set(TEMP_RUNNING_PROCESS, new Map());
+  }
+  const pmap = PROCESS_TARGET_STORE.get(TEMP_RUNNING_PROCESS);
+  if (!pmap.get(t)) {
+    pmap.set(t, new Set());
+  }
+  const pset = pmap.get(t);
+  pset.add(k);
+
+  if (v && typeof v === 'object' && !Array.isArray(v)) {
+    if (TEMP_RUNNING_PROCESS.opt?.add) {
+      // pset.add(SYSTEM_ADD_PROPERTY);
+      addProcessTargetStore(v, SYSTEM_ADD_PROPERTY);
+    }
+    if (TEMP_RUNNING_PROCESS.opt?.delete) {
+      addProcessTargetStore(v, SYSTEM_DELETE_PROPERTY);
+    }
+  }
+}
+
+function addTargetProcessStore(t: any, k: string | symbol, v?: any) {
+  if (!TEMP_RUNNING_PROCESS) return;
+
+  if (v && typeof v === 'object' && !Array.isArray(v)) {
+    // addTargetProcessStore(v, )
+    if (TEMP_RUNNING_PROCESS.opt?.add) {
+      // pset.add(SYSTEM_ADD_PROPERTY);
+      addTargetProcessStore(v, SYSTEM_ADD_PROPERTY);
+    }
+    if (TEMP_RUNNING_PROCESS.opt?.delete) {
+      addTargetProcessStore(v, SYSTEM_DELETE_PROPERTY);
+    }
+  }
+
   if (!TARTGET_PROCESS_STORE.get(t)) {
     TARTGET_PROCESS_STORE.set(t, new Map());
   }
   if (!TARTGET_PROCESS_STORE.get(t).get(k)) {
     TARTGET_PROCESS_STORE.get(t).set(k, []);
   }
+
   const arr = TARTGET_PROCESS_STORE.get(t).get(k);
+
   if (arr.length > 0) {
     const lastProcess = arr[arr.length - 1];
     // !! endID 仅仅是标识符  不代表子节点的ID一定在这个范围，因为子节点可能不断的变更
@@ -29,7 +69,8 @@ function addRely(t: any, k: string) {
       // 表示是这个之后的 如果记录在之前其实是不用担心的，因为数组在执行的时候会把子节点都重置成不可执行
       // 不过还是有隐患 比如在throttle的时候，需要额外的定时函数 有点浪费性能  需要优化
       if (p.getId() > TEMP_RUNNING_PROCESS.beginId) {
-        arr.pop();
+        const process = arr.pop();
+        PROCESS_TARGET_STORE.get(process).get(t).delete(k);
       } else {
         // 施展自己，不用管了呀
         if (p.getId() === TEMP_RUNNING_PROCESS.getId()) {
@@ -42,10 +83,16 @@ function addRely(t: any, k: string) {
   arr.push(TEMP_RUNNING_PROCESS);
 }
 
-watcher.onGet((t, k) => {
-  addRely(t, k);
+function addRely(t: any, k: string, v?: any) {
+  addProcessTargetStore(t, k, v);
+  addTargetProcessStore(t, k, v);
+}
+
+watcher.onGet((t, k, v) => {
+  addRely(t, k, v);
 });
-watcher.onSet((t, k) => {
+
+function onSet(t: any, k: string | symbol) {
   const ps = TARTGET_PROCESS_STORE.get(t)?.get(k);
   TARTGET_PROCESS_STORE.get(t)?.delete(k);
   if (TARTGET_PROCESS_STORE.get(t)?.size === 0) {
@@ -59,6 +106,36 @@ watcher.onSet((t, k) => {
       p.update();
     }
   });
+}
+
+function deleteRely(process: Processable) {
+  process.getChildProcess()?.forEach((p) => deleteRely(p));
+  PROCESS_TARGET_STORE.get(process)?.forEach((keys, target) => {
+    const store = TARTGET_PROCESS_STORE.get(target);
+    store &&
+      keys.forEach((key) => {
+        const processes = store.get(key);
+        processes &&
+          store.set(
+            key,
+            processes.filter((p) => p !== process),
+          );
+      });
+  });
+  PROCESS_TARGET_STORE.delete(process);
+}
+watcher.onSet((t, k, v, ov, isAdd) => {
+  // 对于t的常规属性的操作
+  onSet(t, k);
+  if (isAdd) {
+    if (t && typeof t === 'object' && !Array.isArray(t)) {
+      onSet(t, SYSTEM_ADD_PROPERTY);
+    }
+  }
+});
+
+watcher.onDelete((t, k, ov) => {
+  onSet(t, SYSTEM_DELETE_PROPERTY);
 });
 
 export class Processable {
@@ -75,7 +152,6 @@ export class Processable {
     return all_processes;
   }
 
-  @State()
   private value: (() => void) | void;
   private _shouldGoOn: boolean = true;
 
@@ -100,19 +176,28 @@ export class Processable {
   parent: Processable = TEMP_RUNNING_PROCESS;
 
   constructor(
-    private handler: (opt: {
+    public handler: (opt: {
       count: number;
       id: number;
       process: Processable;
     }) => (() => void) | void,
-    {
+    public opt?: {
+      nexttick?: number | boolean; // 下一个周期执行这里定义下一个周期的时间 0 就是setTimeout
+      // 是否在初始化的时候就运行
+      initOnRun?: boolean;
+      // 是否监听属性的删除
+      delete?: boolean;
+      // 是否监听属性的增加
+      add?: boolean;
+      // 是否
+      syncArray?: boolean;
+    },
+  ) {
+    opt = opt || {};
+    const {
       initOnRun = true, // 是否在初始化的时候就执行
       nexttick = false,
-    }: {
-      nexttick?: number | boolean; // 下一个周期执行这里定义下一个周期的时间 0 就是setTimeout
-      initOnRun?: boolean;
-    } = {},
-  ) {
+    } = opt;
     this.id = ++processId;
     all_processes.set(this.id, this);
     initOnRun && this.run();
@@ -151,6 +236,8 @@ export class Processable {
     if (!this._shouldGoOn) return;
     this.beginId = processId;
     this.endId = -1;
+    // 清空自己的依赖
+    deleteRely(this);
     // 要销毁之前的事件监听
     this.removeEvents();
     // 由于重新运行了，需要清除之前的子程序
@@ -186,6 +273,7 @@ export class Processable {
    */
   reRun() {
     this._shouldGoOn = true;
+    all_processes.set(this.id, this);
     this.run();
   }
 

@@ -1,48 +1,34 @@
 import { emitter } from './common';
 
 const PROXYABLE_FLAG = Symbol('is_proxyable');
+
+const TARGET_PROXY_FLAG = Symbol('has_proxyable');
+
 const ORIGIN_TARGET_FLAG = Symbol('origin_target_flag');
 
 export function Ref<T>(v: T) {
-  return QueProxyable({ value: v });
+  return Proxyable({ value: v });
 }
 
-export function QueProxyable<T>(target: T): T {
+export function Proxyable<T>(target: T): T {
   // 不是一个对象的时候不代理
   if (!target || typeof target !== 'object') return target;
   // 这个对象可能本身就是一个代理对象了
   if (isProxyableData(target)) {
     return target;
   }
-
-  // 存储已经被代理过的数据
-  const KEYS_PROXYDATA_MAP = new Map<string | number | symbol, any>();
+  if (hasProxy(target)) {
+    return target[TARGET_PROXY_FLAG];
+  }
 
   const proxy = new Proxy(target as any, {
     // 调用的时候，自动的代理
     get(t, k, r) {
-      if (t === this) {
-        return Reflect.get(t, k);
-      }
       if (k === PROXYABLE_FLAG) return true;
       if (k === ORIGIN_TARGET_FLAG) return t;
-      let value: any;
-      // 这个key已经被代理过 直接用
-      if (KEYS_PROXYDATA_MAP.has(k)) {
-        value = KEYS_PROXYDATA_MAP.get(k);
-      } else {
-        // 还没有被代理过
-        const rawValue = Reflect.get(t, k, r);
-        // 是一个对象，可以被代理
-        if (rawValue && typeof rawValue === 'object') {
-          value = QueProxyable(rawValue);
-          KEYS_PROXYDATA_MAP.set(k, value);
-        } else {
-          value = rawValue;
-        }
-      }
+      const value = Proxyable(Reflect.get(t, k, r));
       emitter.emit('get', {
-        target: t,
+        target: proxy,
         property: k,
         value,
       });
@@ -50,29 +36,26 @@ export function QueProxyable<T>(target: T): T {
     },
     // 重设
     set(t, k, v, r) {
-      // 记得要移除 防止内存泄漏
-      if (t !== this) {
-        KEYS_PROXYDATA_MAP.delete(k);
-        const isAdd = !t.hasOwnProperty(k);
-        const res = Reflect.set(t, k, v, r);
-        emitter.emit('set', {
-          target: t,
-          property: k,
-          value: v,
-          isAdd,
-          oldValue: Reflect.get(t, k),
-        });
-        return res;
-      }
-      return Reflect.set(t, k, v, r);
+      const isAdd = !t.hasOwnProperty(k);
+      const oldValue = Reflect.get(t, k);
+      const res = Reflect.set(t, k, getOriginData(v), r);
+      emitter.emit('set', {
+        target: proxy,
+        property: k,
+        value: Proxyable(v),
+        isAdd,
+        oldValue: hasProxy(oldValue) ? Proxyable(oldValue) : oldValue,
+      });
+      return res;
     },
     // 删除属性
     deleteProperty(t, p) {
-      KEYS_PROXYDATA_MAP.delete(p);
+      const oldValue = Reflect.get(t, p);
       const res = Reflect.deleteProperty(t, p);
       emitter.emit('delete', {
-        target: t,
+        target: proxy,
         property: p,
+        oldValue: hasProxy(oldValue) ? Proxyable(oldValue) : oldValue,
       });
       return res;
     },
@@ -86,4 +69,8 @@ export function isProxyableData(data: any) {
 
 export function getOriginData(data: any) {
   return (data && data[ORIGIN_TARGET_FLAG]) || data;
+}
+
+export function hasProxy(data: any) {
+  return data && data.hasOwnProperty(TARGET_PROXY_FLAG);
 }

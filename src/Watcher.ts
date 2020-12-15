@@ -1,5 +1,5 @@
 import { emitter } from './common';
-import { QueProxyable } from './proxy';
+import { Proxyable } from './proxy';
 
 export class ProxyWatcher {
   onGet(handler: (target: any, property: string, value: any) => void) {
@@ -25,10 +25,14 @@ export class ProxyWatcher {
       handler(target, property, value, oldValue, isAdd),
     );
   }
-  onDelete(handler: (target: any, property: string) => void) {
-    return emitter.on('delete', ({ target, property }: any) => handler(target, property));
+  onDelete(handler: (target: any, property: string, oldV: any) => void) {
+    return emitter.on('delete', ({ target, property, oldValue }: any) =>
+      handler(target, property, oldValue),
+    );
   }
-  onceDelete(handler: (target: any, property: string) => void) {
-    return emitter.on('delete', ({ target, property }: any) => handler(target, property));
+  onceDelete(handler: (target: any, property: string, oldV: any) => void) {
+    return emitter.on('delete', ({ target, property, oldValue }: any) =>
+      handler(target, property, oldValue),
+    );
   }
 }

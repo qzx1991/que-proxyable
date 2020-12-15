@@ -1,5 +1,5 @@
 import { emitter } from './common';
-import { QueProxyable } from './proxy';
+import { Proxyable } from './proxy';
 
 export function State() {
   return (target: any, key: string) => {
@@ -20,7 +20,7 @@ export function State() {
           let tValue = v;
           Object.defineProperty(this, key, {
             get() {
-              const proxyableData = QueProxyable(tValue);
+              const proxyableData = Proxyable(tValue);
               emitter.emit('get', {
                 target: this,
                 property: key,
@@ -32,7 +32,7 @@ export function State() {
               emitter.emit('set', {
                 target: this,
                 property: key,
-                value: v,
+                value: Proxyable(v),
                 oldValue: tValue,
               });
               tValue = v;
