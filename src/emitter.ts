@@ -1,4 +1,5 @@
 export default class Emitter {
+  //  表示正在执行函数队列
   private running = false;
   private handlers = new Map<string, { handler: (...args: any[]) => void; once?: boolean }[]>();
   // 一直监听

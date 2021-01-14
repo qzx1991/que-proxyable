@@ -55,6 +55,7 @@ function addTargetProcessStore(t: any, k: string | symbol, v?: any) {
     TARTGET_PROCESS_STORE.get(t).set(k, []);
   }
 
+  // 这个是表示这个对象的这个k属性关联了哪些process 最终是这些process取重新执行
   const arr = TARTGET_PROCESS_STORE.get(t).get(k);
 
   if (arr.length > 0) {
@@ -67,13 +68,14 @@ function addTargetProcessStore(t: any, k: string | symbol, v?: any) {
     for (let i = arr.length - 1; i >= 0; i--) {
       const p = arr[i];
       // 表示是这个之后的 如果记录在之前其实是不用担心的，因为数组在执行的时候会把子节点都重置成不可执行
-      // 不过还是有隐患 比如在throttle的时候，需要额外的定时函数 有点浪费性能  需要优化
       if (p.getId() > TEMP_RUNNING_PROCESS.beginId) {
+        // 移除子节点的依赖
         const process = arr.pop();
         PROCESS_TARGET_STORE.get(process).get(t).delete(k);
       } else {
         // 施展自己，不用管了呀
         if (p.getId() === TEMP_RUNNING_PROCESS.getId()) {
+          // return 目的在于跳出循环 避免没必要的循环
           return;
         }
         break;
@@ -159,6 +161,7 @@ export class Processable {
 
   private childProcess = new Set<Processable>();
 
+  // 一个标识，表明是第几次被调用
   count = 1;
 
   beginId: number;
@@ -182,6 +185,7 @@ export class Processable {
       process: Processable;
     }) => (() => void) | void,
     public opt?: {
+      // 一个进程可能关联多个数据 在一个生命周期中，这些数据可能有多个被更新，如果不使用nexttick run函数会被执行多次
       nexttick?: number | boolean; // 下一个周期执行这里定义下一个周期的时间 0 就是setTimeout
       // 是否在初始化的时候就运行
       initOnRun?: boolean;
@@ -189,20 +193,19 @@ export class Processable {
       delete?: boolean;
       // 是否监听属性的增加
       add?: boolean;
-      // 是否
-      syncArray?: boolean;
     },
   ) {
     opt = opt || {};
     const {
       initOnRun = true, // 是否在初始化的时候就执行
-      nexttick = false,
+      nexttick = true, // 默认等待一个setTimeout 0的生命周期再执行
     } = opt;
     this.id = ++processId;
     all_processes.set(this.id, this);
     initOnRun && this.run();
-    this.useTick = !(typeof nexttick === 'boolean' && !nexttick);
+    this.useTick = !(nexttick !== false);
     this.tick = this.useTick ? (nexttick === true ? 0 : (nexttick as number)) : 0;
+    // 之所以使用throttle和debounce 是希望用throttle和debounce提供的函数来实现一个setTimeout()类似的函数，也可以直接使用setTimeout
     if (this.useTick) {
       this.throttle = new Throttle(this.tick);
       this.debounce = new Debounce(this.tick);
@@ -222,7 +225,6 @@ export class Processable {
   clearChildProcess() {
     this.childProcess.forEach((p) => {
       p.stop();
-      p.clearChildProcess();
     });
     this.childProcess.clear();
   }
@@ -231,8 +233,9 @@ export class Processable {
     return this.childProcess;
   }
 
+  // 执行这个线程 同时记录子线程
   run() {
-    // 不该继续，那得停止
+    // 不该继续，那得停止 _shouldGoOn是一个状态标志位
     if (!this._shouldGoOn) return;
     this.beginId = processId;
     this.endId = -1;
@@ -242,20 +245,47 @@ export class Processable {
     this.removeEvents();
     // 由于重新运行了，需要清除之前的子程序
     this.clearChildProcess();
-    // 保存上个进程
+    // 保存上个进程 以便结束时交还
     let lastProces = TEMP_RUNNING_PROCESS;
     // 将当前进程加入父进程
     lastProces?.childProcess?.add(this);
     // 保为当前进程
     TEMP_RUNNING_PROCESS = this;
+    // 执行函数 上方的监听函数会自动的记录这个过程中用到的数据
     this.value = this.handler({
-      count: this.count,
+      count: this.count++,
       process: this,
       id: this.id,
     });
+    // 交还
     TEMP_RUNNING_PROCESS = lastProces;
     //记录endId
     this.endId = processId;
+    /**
+     * beginId和endId时作什么的呢？
+     * 一个函数执行的过程中可能会生成很多的子进程，子进程同样也会生成自己的子进程，如此反复，最终形成了一棵线程树
+     * 这里却不得不考虑的一个问题是：
+     * 1. 父进程依赖了一个数据
+     * 2. 子进程也依赖了同样的数据
+     * 理想的情况是 父进程执行了 子进程不用执行了
+     * 现实情况是：子进程和父进程依赖的先后顺序不确定，因此执行顺序也不确定
+     * 那么有可能就是
+     * 1.子进程先执行了，在执行父进程 父进程清空旧的子进程又生成了新的子进程
+     * 2.父进程先执行，清空子进程，执行一遍
+     * 可以看到，对于第一种情况，子进程会被多执行一次，尽管不会影响最终结果，但是却带来了没有必要的计算消耗。
+     *
+     * beginId 和 endId的存在就是为了解决这个矛盾
+     *
+     * beginId表示的是进程开始执行的时候 当前的最新的进程号
+     * 如果有子进程，子进程的ID号定是 >= beginId
+     *
+     * 开始执行的时候 beginId = processId  endId = -1;
+     *
+     * endId的目的在于 记录的时候判断是否在上一个i进程之后， -1 表示上一次这个对象的这个属性对应的process还没结束，那只能是自己或者父节点 那可以不用管
+     *
+     * beginId的目的在于  记录依赖的时候 如果遇到已经记录的依赖的id大于当前执行进程的beginId 表示那个是自己的子节点 要移除依赖
+     *
+     */
   }
 
   update() {
@@ -273,6 +303,7 @@ export class Processable {
    */
   reRun() {
     this._shouldGoOn = true;
+    // stop的时候已经从总进程中删除了进程ＩＤ
     all_processes.set(this.id, this);
     this.run();
   }
@@ -287,9 +318,12 @@ export class Processable {
   }
 
   stop() {
+    // 已经停止了 没必要继续了
     if (!this._shouldGoOn) return;
     this.clearChildProcess();
+    // 设置状态为停止状态
     this._shouldGoOn = false;
+    // 移除事件 一个process在执行完一个过程后，可以通过一个返回函数来作为钩子函数以待停止时去调用
     this.removeEvents();
     // 清除进程ID的记录
     all_processes.delete(this.id);

@@ -32,7 +32,7 @@ export function State() {
               emitter.emit('set', {
                 target: this,
                 property: key,
-                value: Proxyable(v),
+                value: v,
                 oldValue: tValue,
               });
               tValue = v;

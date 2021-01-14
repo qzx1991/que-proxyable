@@ -1,22 +1,35 @@
 import { emitter } from './common';
 
-const PROXYABLE_FLAG = Symbol('is_proxyable');
+// 使用 _开头的好处是解构的时候不会被解构
 
-const TARGET_PROXY_FLAG = Symbol('has_proxyable');
+/**是否是代理对象 */
+const PROXYABLE_FLAG = '_$$__$$__is_proxyable';
 
-const ORIGIN_TARGET_FLAG = Symbol('origin_target_flag');
+/**对象是否被代理福哦 */
+const TARGET_PROXY_FLAG = '_$$__$$__has_proxyable';
 
-export function Ref<T>(v: T) {
-  return Proxyable({ value: v });
+/** 代理对象的原生对象属性标识 */
+const ORIGIN_TARGET_FLAG = '_$$__$$__origin_target_flag';
+
+export function Ref<T>(v: T, recru: (v: any) => boolean) {
+  return Proxyable({ value: v }, recru);
 }
 
-export function Proxyable<T>(target: T): T {
+/**
+ *
+ * @param target 需要代理的对象
+ * @param recru 是否需要迭代代理(比如获取某个属性的值，若值也是对象，那么仍然使用同样的方法进行代理)
+ */
+export function Proxyable<T>(target: T, recru: (v: any) => boolean = () => true): T {
   // 不是一个对象的时候不代理
   if (!target || typeof target !== 'object') return target;
   // 这个对象可能本身就是一个代理对象了
   if (isProxyableData(target)) {
     return target;
   }
+  /**
+   * js的内存机制是从根节点开始， 所以这里即使存在循环引用 也无大碍
+   */
   if (hasProxy(target)) {
     return target[TARGET_PROXY_FLAG];
   }
@@ -26,7 +39,8 @@ export function Proxyable<T>(target: T): T {
     get(t, k, r) {
       if (k === PROXYABLE_FLAG) return true;
       if (k === ORIGIN_TARGET_FLAG) return t;
-      const value = Proxyable(Reflect.get(t, k, r));
+      const v = Reflect.get(t, k, r);
+      const value = recru(v) ? Proxyable(v, recru) : v;
       emitter.emit('get', {
         target: proxy,
         property: k,
@@ -42,9 +56,9 @@ export function Proxyable<T>(target: T): T {
       emitter.emit('set', {
         target: proxy,
         property: k,
-        value: Proxyable(v),
+        value: v,
         isAdd,
-        oldValue: hasProxy(oldValue) ? Proxyable(oldValue) : oldValue,
+        oldValue: oldValue,
       });
       return res;
     },
@@ -55,11 +69,12 @@ export function Proxyable<T>(target: T): T {
       emitter.emit('delete', {
         target: proxy,
         property: p,
-        oldValue: hasProxy(oldValue) ? Proxyable(oldValue) : oldValue,
+        oldValue: oldValue,
       });
       return res;
     },
   });
+  target[TARGET_PROXY_FLAG] = proxy;
   return proxy;
 }
 
