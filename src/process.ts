@@ -203,7 +203,7 @@ export class Processable {
     this.id = ++processId;
     all_processes.set(this.id, this);
     initOnRun && this.run();
-    this.useTick = !(nexttick !== false);
+    this.useTick = nexttick !== false;
     this.tick = this.useTick ? (nexttick === true ? 0 : (nexttick as number)) : 0;
     // 之所以使用throttle和debounce 是希望用throttle和debounce提供的函数来实现一个setTimeout()类似的函数，也可以直接使用setTimeout
     if (this.useTick) {
