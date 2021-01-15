@@ -2801,10 +2801,10 @@ que-proxyable@^1.0.2:
     tslib "^2.0.3"
     typescript "^4.0.5"
 
-que-utils@^1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/que-utils/-/que-utils-1.0.0.tgz#3b6e6e22a1e7684c683947a5bc7ce5cbb1e25302"
-  integrity sha512-XGm2aR43mn/qtjjRr1z8ao9QPhfjvQ70Ud8dYPaO3b3jSxkY3VlBW5Dr1IazLAjjS2aODuOx+fNHND+QWb/VQw==
+que-utils@^1.0.2:
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/que-utils/-/que-utils-1.0.2.tgz#aed86397f93a890ad091ed82ff543711786f940a"
+  integrity sha512-cbk9ekHEGYp7SUagV593c5BFwnYK/RR9eF2oLWtS9TerE9KQmDxXqT7tDbG+NFc5nzY018Wx3x/OWELY2/75ag==
   dependencies:
     "@types/node" "^14.14.6"
     que-proxyable "^1.0.2"

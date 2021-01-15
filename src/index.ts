@@ -5,3 +5,4 @@ export * from './emitter';
 export * from './proxy';
 export * from './Watcher';
 export * from './process';
+export * from 'que-utils';
